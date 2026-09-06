@@ -107,12 +107,6 @@ void halt() {
   while (1) ;
 }
 
-/* WIFI RECONNECT TRACKERS */
-#if defined(ESP32) && defined(WIFI_SSID)
-  bool wifi_needs_reconnect = false;
-  unsigned long last_wifi_reconnect_attempt = 0;
-#endif
-
 void setup() {
   Serial.begin(115200);
   board.begin();
@@ -190,22 +184,14 @@ void setup() {
   interface_manager.addInterface(InterfaceType::Bluetooth, &bluetooth_interface);
 #endif
 
-// add wifi interface
+// add wifi interface (as an open access point)
 #ifdef WIFI_SSID
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
-  WiFi.setAutoReconnect(true);
 
-  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
-      if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
-          WIFI_DEBUG_PRINTLN("WiFi disconnected. Flagging for reconnect...");
-          wifi_needs_reconnect = true;
-      } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
-          WIFI_DEBUG_PRINTLN("WiFi connected successfully!");
-          wifi_needs_reconnect = false;
-      }
-  });
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(WIFI_SSID); 
+  WIFI_DEBUG_PRINTLN("WiFi AP started");
 
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
   wifi_interface.begin(TCP_PORT);
   interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
 #endif
@@ -261,14 +247,4 @@ void loop() {
     board.sleep(0); // nrf ignores seconds param, sleeps whenever possible
 #endif
   }
-
-#if defined(ESP32) && defined(WIFI_SSID)
-  // Safely attempt to reconnect every 10 seconds if flagged
-  if (wifi_needs_reconnect && (millis() - last_wifi_reconnect_attempt > 10000)) {
-    WIFI_DEBUG_PRINTLN("Attempting manual WiFi reconnect...");
-    WiFi.disconnect();
-    WiFi.reconnect();
-    last_wifi_reconnect_attempt = millis();
-  }
-#endif
 }
