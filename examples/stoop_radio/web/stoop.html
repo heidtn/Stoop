@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#stoop</title>
+<style>
+  :root{
+    --bg: #fbf3e7;
+    --card: #ffffff;
+    --ink: #2b2320;
+    --muted: #6b5f56;
+    --amber: #d98c2b;
+    --amber-dark: #b8701c;
+    --line: #ecdfc9;
+  }
+  *{ box-sizing: border-box; }
+  html, body{ margin:0; padding:0; height:100%; }
+  body{
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  header{
+    padding: 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .wrap{ max-width: 560px; margin: 0 auto; width: 100%; }
+  .back{
+    display:inline-block;
+    color: var(--muted);
+    text-decoration:none;
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+  }
+  h1{ margin: 0; font-size: 1.4rem; }
+  main{
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+  }
+  .empty{
+    color: var(--muted);
+    text-align: center;
+    margin-top: 40px;
+  }
+  .msg{
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    max-width: 560px;
+    box-shadow: 0 1px 6px rgba(60, 40, 10, 0.05);
+  }
+  .msg .sender{
+    font-weight: 600;
+    color: var(--amber-dark);
+    margin-right: 6px;
+  }
+  .msg .time{
+    display:block;
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-top: 4px;
+  }
+  form{
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+  }
+  input[type=text]{
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    font-size: 1rem;
+    background: var(--card);
+    color: var(--ink);
+  }
+  input[type=text]:focus{ outline: 2px solid var(--amber); }
+  button{
+    padding: 12px 18px;
+    border: none;
+    border-radius: 10px;
+    background: var(--amber);
+    color: #fff;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:disabled{ background: #e2c193; cursor: default; }
+  button:active:not(:disabled){ background: var(--amber-dark); }
+  .status{
+    text-align:center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 4px 16px 0;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <a class="back" href="chat.html">&larr; Channels</a>
+    <h1>#stoop</h1>
+  </div>
+</header>
+
+<main id="messages">
+  <div class="empty" id="empty">No messages yet. Be the first to say hello.</div>
+</main>
+
+<div class="status" id="status"></div>
+
+<form id="send-form">
+  <div class="wrap" style="display:flex; gap:10px; width:100%;">
+    <input type="text" id="text" maxlength="150" placeholder="Message #stoop&hellip;" autocomplete="off">
+    <button type="submit" id="send-btn">Send</button>
+  </div>
+</form>
+
+<script>
+  const messagesEl = document.getElementById('messages');
+  const emptyEl = document.getElementById('empty');
+  const statusEl = document.getElementById('status');
+  const form = document.getElementById('send-form');
+  const input = document.getElementById('text');
+  const sendBtn = document.getElementById('send-btn');
+
+  let lastRenderedCount = -1;
+
+  function splitSender(text) {
+    const i = text.indexOf(': ');
+    if (i === -1) return { sender: null, body: text };
+    return { sender: text.slice(0, i), body: text.slice(i + 2) };
+  }
+
+  function formatTime(ts) {
+    // ts is only meaningful once the node's clock has been set
+    if (!ts || ts < 1600000000) return '';
+    const d = new Date(ts * 1000);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function render(list) {
+    if (list.length === lastRenderedCount) return;
+    lastRenderedCount = list.length;
+
+    messagesEl.innerHTML = '';
+    if (list.length === 0) {
+      messagesEl.appendChild(emptyEl);
+      return;
+    }
+    for (const m of list) {
+      const { sender, body } = splitSender(m.text);
+      const div = document.createElement('div');
+      div.className = 'msg';
+      const senderSpan = sender ? `<span class="sender">${escapeHtml(sender)}</span>` : '';
+      const time = formatTime(m.ts);
+      div.innerHTML = `${senderSpan}${escapeHtml(body)}` +
+        (time ? `<span class="time">${time}</span>` : '');
+      messagesEl.appendChild(div);
+    }
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  async function refresh() {
+    try {
+      const res = await fetch('/api/stoop/messages');
+      if (!res.ok) throw new Error('bad response');
+      const list = await res.json();
+      render(list);
+      statusEl.textContent = '';
+    } catch (e) {
+      statusEl.textContent = "Can't reach the radio right now.";
+    }
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+
+    sendBtn.disabled = true;
+    try {
+      const res = await fetch('/api/stoop/send', { method: 'POST', body: text });
+      if (!res.ok) throw new Error('send failed');
+      input.value = '';
+      lastRenderedCount = -1; // force re-render with the new message
+      await refresh();
+    } catch (e) {
+      statusEl.textContent = 'Message failed to send. Try again.';
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  });
+
+  refresh();
+  setInterval(refresh, 3000);
+</script>
+</body>
+</html>

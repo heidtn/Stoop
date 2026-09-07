@@ -14,6 +14,20 @@ static uint32_t _atoi(const char* sp) {
   return n;
 }
 
+// escape a string for safe embedding inside a JSON string literal
+static void appendJsonEscaped(String& out, const char* s) {
+  for (const char* p = s; *p; p++) {
+    switch (*p) {
+      case '"':  out += "\\\""; break;
+      case '\\': out += "\\\\"; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      default:
+        out += ((uint8_t)*p < 0x20) ? ' ' : *p;
+    }
+  }
+}
+
 // interface manager
 #include <helpers/MultiSerialInterface.h>
 MultiSerialInterface interface_manager;
@@ -200,6 +214,55 @@ void setup() {
     server.sendHeader("Content-Encoding", "gzip");
     server.send_P(200, "text/html", (const char*)INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
   });
+  server.on("/chat.html", HTTP_GET, [](){
+    WIFI_DEBUG_PRINTLN("Serving chat.html");
+    server.sendHeader("Content-Encoding", "gzip");
+    server.send_P(200, "text/html", (const char*)CHAT_HTML_GZ, CHAT_HTML_GZ_LEN);
+  });
+  server.on("/stoop.html", HTTP_GET, [](){
+    WIFI_DEBUG_PRINTLN("Serving stoop.html");
+    server.sendHeader("Content-Encoding", "gzip");
+    server.send_P(200, "text/html", (const char*)STOOP_HTML_GZ, STOOP_HTML_GZ_LEN);
+  });
+
+  // returns recent #stoop channel messages as JSON: [{"ts":123,"text":"name: hi"}, ...]
+  server.on("/api/stoop/messages", HTTP_GET, [](){
+    int count = the_mesh.stoop_log_count;
+    int n = count < MyMesh::STOOP_LOG_SIZE ? count : MyMesh::STOOP_LOG_SIZE;
+    int start = count - n;
+    String json = "[";
+    for (int i = 0; i < n; i++) {
+      auto& msg = the_mesh.stoop_log[(start + i) % MyMesh::STOOP_LOG_SIZE];
+      if (i > 0) json += ",";
+      json += "{\"ts\":";
+      json += msg.timestamp;
+      json += ",\"text\":\"";
+      appendJsonEscaped(json, msg.text);
+      json += "\"}";
+    }
+    json += "]";
+    server.send(200, "application/json", json);
+  });
+
+  // sends the POST body as a plain text message on the #stoop channel, from the radio itself
+  server.on("/api/stoop/send", HTTP_POST, [](){
+    String text = server.arg("plain");
+    if (text.length() == 0 || (int)text.length() > MAX_TEXT_LEN) {
+      server.send(400, "text/plain", "bad request");
+      return;
+    }
+    ChannelDetails channel;
+    uint32_t ts = the_mesh.getRTCClock()->getCurrentTimeUnique();
+    if (the_mesh.getChannel(0, channel) &&
+        the_mesh.sendGroupMessage(ts, channel.channel, the_mesh.getNodeName(), text.c_str(), text.length())) {
+      char full[MAX_TEXT_LEN + 40];
+      snprintf(full, sizeof(full), "%s: %s", the_mesh.getNodeName(), text.c_str());
+      the_mesh.logStoopMsg(ts, full);
+      server.send(200, "text/plain", "OK");
+    } else {
+      server.send(500, "text/plain", "send failed");
+    }
+  });
 
   wifi_interface.begin(TCP_PORT);
   interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
@@ -244,6 +307,9 @@ void loop() {
   the_mesh.loop();
   interface_manager.loop();
   sensors.loop();
+#ifdef WIFI_SSID
+  server.handleClient();
+#endif
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif

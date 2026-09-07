@@ -102,6 +102,13 @@ public:
 
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
 
+  // simple in-RAM history of #stoop channel messages, for the web chat UI
+  struct StoopMsg { uint32_t timestamp; char text[MAX_TEXT_LEN + 1]; };
+  static const int STOOP_LOG_SIZE = 20;
+  StoopMsg stoop_log[STOOP_LOG_SIZE];
+  int stoop_log_count = 0;
+  void logStoopMsg(uint32_t timestamp, const char* text);
+
 protected:
   float getAirtimeBudgetFactor() const override;
   int getInterferenceThreshold() const override;

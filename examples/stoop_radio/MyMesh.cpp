@@ -2,6 +2,9 @@
 
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
+#include <Utils.h>
+
+extern unsigned int encode_base64(const unsigned char input[], unsigned int input_length, unsigned char output[]);
 
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
@@ -558,6 +561,10 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   out_frame[i++] = channel_idx;
   uint8_t path_len = out_frame[i++] = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
 
+  MESH_DEBUG_PRINTLN("onChannelMessageRecv: channel_idx=%d, path_len=%d, timestamp=%u, text='%s'",
+                     channel_idx, path_len, timestamp, text);
+  logStoopMsg(timestamp, text);
+
   out_frame[i++] = TXT_TYPE_PLAIN;
   memcpy(&out_frame[i], &timestamp, 4);
   i += 4;
@@ -587,6 +594,14 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   }
   if (_ui) _ui->newMsg(path_len, channel_name, text, offline_queue_len);
 #endif
+}
+
+void MyMesh::logStoopMsg(uint32_t timestamp, const char* text) {
+  StoopMsg& slot = stoop_log[stoop_log_count % STOOP_LOG_SIZE];
+  slot.timestamp = timestamp;
+  strncpy(slot.text, text, sizeof(slot.text) - 1);
+  slot.text[sizeof(slot.text) - 1] = 0;
+  stoop_log_count++;
 }
 
 void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint16_t data_type,
@@ -970,8 +985,17 @@ void MyMesh::begin(bool has_display) {
   resetContacts();
   _store->loadContacts(this);
   bootstrapRTCfromContacts();
-  addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
-  _store->loadChannels(this);
+  uint8_t secret[16];
+  const char* chan = "#stoop";
+  mesh::Utils::sha256(secret, sizeof(secret),
+              (const uint8_t*)chan, strlen(chan),
+              NULL, 0);
+
+  char secret_b64[32]; // encode_base64_length(16) = 24, plus null terminator
+  encode_base64(secret, sizeof(secret), (unsigned char*)secret_b64);
+
+  addChannel("#stoop", secret_b64); // pre-configure the default #stoop channel
+  //_store->loadChannels(this);
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
