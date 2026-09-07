@@ -1,6 +1,8 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include <WebServer.h>
 #include "MyMesh.h"
+#include <web_assets.h>
 
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
@@ -40,6 +42,7 @@ MultiSerialInterface interface_manager;
     // include esp32 wifi interface
     #include <helpers/esp32/SerialWifiInterface.h>
     SerialWifiInterface wifi_interface;
+    WebServer server(80);
   #else
     #error "SerialWifiInterface is not defined for this platform"
   #endif
@@ -192,8 +195,15 @@ void setup() {
   WiFi.softAP(WIFI_SSID); 
   WIFI_DEBUG_PRINTLN("WiFi AP started");
 
+  server.on("/", HTTP_GET, [](){
+    WIFI_DEBUG_PRINTLN("Serving index.html");
+    server.sendHeader("Content-Encoding", "gzip");
+    server.send_P(200, "text/html", (const char*)INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
+  });
+
   wifi_interface.begin(TCP_PORT);
   interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
+  server.begin(); 
 #endif
 
 // add usb interface
