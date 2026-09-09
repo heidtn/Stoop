@@ -4,7 +4,11 @@
 #include <Mesh.h>
 #include <Utils.h>
 
-extern unsigned int encode_base64(const unsigned char input[], unsigned int input_length, unsigned char output[]);
+// base64-encoded pre-shared key for the #stoop channel; override at build time
+// (e.g. -D STOOP_CHANNEL_PSK='"..."') to make #stoop a private channel
+#ifndef STOOP_CHANNEL_PSK
+#define STOOP_CHANNEL_PSK PUBLIC_GROUP_PSK
+#endif
 
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
@@ -985,16 +989,7 @@ void MyMesh::begin(bool has_display) {
   resetContacts();
   _store->loadContacts(this);
   bootstrapRTCfromContacts();
-  uint8_t secret[16];
-  const char* chan = "#stoop";
-  mesh::Utils::sha256(secret, sizeof(secret),
-              (const uint8_t*)chan, strlen(chan),
-              NULL, 0);
-
-  char secret_b64[32]; // encode_base64_length(16) = 24, plus null terminator
-  encode_base64(secret, sizeof(secret), (unsigned char*)secret_b64);
-
-  addChannel("#stoop", secret_b64); // pre-configure the default #stoop channel
+  addChannel("#stoop", STOOP_CHANNEL_PSK); // pre-configure the default #stoop channel; PSK set at compile time
   //_store->loadChannels(this);
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);

@@ -1,0 +1,10 @@
+; Do not modify this file with custom values! Copy this file to "platformio.local.ini" 
+; and fill in your own values there. .gitignore will ensure that file isn't tracked 
+;
+;   cp platformio.local.ini.template platformio.local.ini
+;
+; PlatformIO merges platformio.local.ini with platformio.ini
+;
+; [env:heltec_v4_stoop_radio]
+; build_flags =
+;   -D STOOP_CHANNEL_PSK='"<your base64 key>"'
