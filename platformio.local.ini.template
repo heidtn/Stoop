@@ -1,10 +1,15 @@
-; Do not modify this file with custom values! Copy this file to "platformio.local.ini" 
-; and fill in your own values there. .gitignore will ensure that file isn't tracked 
+; Do not modify this file with custom values! Copy this file to "platformio.local.ini"
+; and fill in your own values there. .gitignore will ensure that file isn't tracked
 ;
 ;   cp platformio.local.ini.template platformio.local.ini
+; 
+; The copy of this file will store the secrets that are used to set up private channels
+; .gitignore will also ensure the file isn't tracked by git and that users don't accidentally
+; upload their secrets!
 ;
-; PlatformIO merges platformio.local.ini with platformio.ini
-;
-; [env:heltec_v4_stoop_radio]
-; build_flags =
-;   -D STOOP_CHANNEL_PSK='"<your base64 key>"'
+; By default, meshcore shows the secrets as hex messages, you need to convert to base64, you can do this
+; with echo -n "<your hex key>" | xxd -r -p | openssl base64 -A
+
+[stoop_secrets]
+build_flags =
+   -D STOOP_CHANNEL_PSK='"<your base64 key>"'
