@@ -61,6 +61,8 @@ MultiSerialInterface interface_manager;
     #include <helpers/esp32/SerialWifiInterface.h>
     SerialWifiInterface wifi_interface;
     WebServer server(80);
+    #include <DNSServer.h>
+    DNSServer dns_server;
   #else
     #error "SerialWifiInterface is not defined for this platform"
   #endif
@@ -210,8 +212,10 @@ void setup() {
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
 
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(WIFI_SSID); 
+  WiFi.softAP(WIFI_SSID);
   WIFI_DEBUG_PRINTLN("WiFi AP started");
+
+  dns_server.start(53, "*", WiFi.softAPIP()); // redirect all DNS lookups to us
 
   server.on("/", HTTP_GET, [](){
     WIFI_DEBUG_PRINTLN("Serving index.html");
@@ -275,9 +279,16 @@ void setup() {
     }
   });
 
+  // Any request for a page that we don't host is treated as a captive portal probe.
+  // and redirected to the main page.
+  server.onNotFound([](){
+    server.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/", true);
+    server.send(302, "text/plain", "");
+  });
+
   wifi_interface.begin(TCP_PORT);
   interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
-  server.begin(); 
+  server.begin();
 #endif
 
 // add usb interface
@@ -320,6 +331,7 @@ void loop() {
   sensors.loop();
 #ifdef WIFI_SSID
   server.handleClient();
+  dns_server.processNextRequest();
 #endif
 #ifdef DISPLAY_CLASS
   ui_task.loop();
