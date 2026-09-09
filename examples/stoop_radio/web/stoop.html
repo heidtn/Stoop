@@ -39,6 +39,24 @@
     margin-bottom: 6px;
   }
   h1{ margin: 0; font-size: 1.4rem; }
+  .whoami{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .whoami input{
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    font-size: 0.9rem;
+    background: var(--card);
+    color: var(--ink);
+  }
+  .whoami input:focus{ outline: 2px solid var(--amber); }
   main{
     flex: 1;
     overflow-y: auto;
@@ -111,6 +129,10 @@
   <div class="wrap">
     <a class="back" href="chat.html">&larr; Channels</a>
     <h1>#stoop</h1>
+    <div class="whoami">
+      <label for="username">You are</label>
+      <input type="text" id="username" maxlength="24" placeholder="pick a username" autocomplete="off">
+    </div>
   </div>
 </header>
 
@@ -134,8 +156,14 @@
   const form = document.getElementById('send-form');
   const input = document.getElementById('text');
   const sendBtn = document.getElementById('send-btn');
+  const usernameInput = document.getElementById('username');
 
   let lastRenderedCount = -1;
+
+  usernameInput.value = localStorage.getItem('stoop_username') || '';
+  usernameInput.addEventListener('input', () => {
+    localStorage.setItem('stoop_username', usernameInput.value.trim());
+  });
 
   function splitSender(text) {
     const i = text.indexOf(': ');
@@ -195,9 +223,19 @@
     const text = input.value.trim();
     if (!text) return;
 
+    const username = usernameInput.value.trim();
+    if (!username) {
+      statusEl.textContent = 'Pick a username first.';
+      usernameInput.focus();
+      return;
+    }
+
     sendBtn.disabled = true;
     try {
-      const res = await fetch('/api/stoop/send', { method: 'POST', body: text });
+      const res = await fetch('/api/stoop/send', {
+        method: 'POST',
+        body: new URLSearchParams({ username, text })
+      });
       if (!res.ok) throw new Error('send failed');
       input.value = '';
       lastRenderedCount = -1; // force re-render with the new message

@@ -4,6 +4,10 @@
 #include "MyMesh.h"
 #include <web_assets.h>
 
+#ifndef STOOP_NODE_NAME
+#define STOOP_NODE_NAME "stoop"
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -244,19 +248,26 @@ void setup() {
     server.send(200, "application/json", json);
   });
 
-  // sends the POST body as a plain text message on the #stoop channel, from the radio itself
+  // sends a message on the #stoop channel as "username@<node name>: text"
   server.on("/api/stoop/send", HTTP_POST, [](){
-    String text = server.arg("plain");
+    String text = server.arg("text");
+    String username = server.arg("username");
     if (text.length() == 0 || (int)text.length() > MAX_TEXT_LEN) {
       server.send(400, "text/plain", "bad request");
       return;
     }
+    if (username.length() == 0) username = "anon";
+    if (username.length() > 24) username = username.substring(0, 24);
+
+    char sender[24 + 1 + sizeof(STOOP_NODE_NAME) + 1];
+    snprintf(sender, sizeof(sender), "%s@%s", username.c_str(), STOOP_NODE_NAME);
+
     ChannelDetails channel;
     uint32_t ts = the_mesh.getRTCClock()->getCurrentTimeUnique();
     if (the_mesh.getChannel(0, channel) &&
-        the_mesh.sendGroupMessage(ts, channel.channel, the_mesh.getNodeName(), text.c_str(), text.length())) {
-      char full[MAX_TEXT_LEN + 40];
-      snprintf(full, sizeof(full), "%s: %s", the_mesh.getNodeName(), text.c_str());
+        the_mesh.sendGroupMessage(ts, channel.channel, sender, text.c_str(), text.length())) {
+      char full[sizeof(sender) + MAX_TEXT_LEN + 2];
+      snprintf(full, sizeof(full), "%s: %s", sender, text.c_str());
       the_mesh.logStoopMsg(ts, full);
       server.send(200, "text/plain", "OK");
     } else {
