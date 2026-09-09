@@ -40,23 +40,27 @@
   }
   h1{ margin: 0; font-size: 1.4rem; }
   .whoami{
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 10px;
+    margin-top: 8px;
     font-size: 0.9rem;
     color: var(--muted);
   }
-  .whoami input{
-    flex: 1;
-    padding: 8px 10px;
-    border-radius: 8px;
+  .whoami a{ color: var(--amber-dark); font-weight: 600; text-decoration: none; }
+  .whoami strong{ color: var(--ink); }
+  .search-bar{
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .search-bar input{
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
     border: 1px solid var(--line);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     background: var(--card);
     color: var(--ink);
   }
-  .whoami input:focus{ outline: 2px solid var(--amber); }
+  .search-bar input:focus{ outline: 2px solid var(--amber); }
   main{
     flex: 1;
     overflow-y: auto;
@@ -129,12 +133,15 @@
   <div class="wrap">
     <a class="back" href="chat.html">&larr; Channels</a>
     <h1>#stoop</h1>
-    <div class="whoami">
-      <label for="username">You are</label>
-      <input type="text" id="username" maxlength="24" placeholder="pick a username" autocomplete="off">
-    </div>
+    <div class="whoami" id="whoami"></div>
   </div>
 </header>
+
+<div class="search-bar">
+  <div class="wrap">
+    <input type="text" id="search" placeholder="Search messages&hellip;" autocomplete="off">
+  </div>
+</div>
 
 <main id="messages">
   <div class="empty" id="empty">No messages yet. Be the first to say hello.</div>
@@ -156,14 +163,20 @@
   const form = document.getElementById('send-form');
   const input = document.getElementById('text');
   const sendBtn = document.getElementById('send-btn');
-  const usernameInput = document.getElementById('username');
+  const whoamiEl = document.getElementById('whoami');
+  const searchInput = document.getElementById('search');
 
-  let lastRenderedCount = -1;
+  const username = (localStorage.getItem('stoop_username') || '').trim();
+  let allMessages = [];
 
-  usernameInput.value = localStorage.getItem('stoop_username') || '';
-  usernameInput.addEventListener('input', () => {
-    localStorage.setItem('stoop_username', usernameInput.value.trim());
-  });
+  if (username) {
+    whoamiEl.innerHTML = `You are <strong>${escapeHtml(username)}</strong>`;
+  } else {
+    whoamiEl.innerHTML = `<a href="chat.html">Pick a username to chat &rarr;</a>`;
+    input.disabled = true;
+    sendBtn.disabled = true;
+    input.placeholder = 'Pick a username on the Channels page first';
+  }
 
   function splitSender(text) {
     const i = text.indexOf(': ');
@@ -178,12 +191,10 @@
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  function render(list) {
-    if (list.length === lastRenderedCount) return;
-    lastRenderedCount = list.length;
-
+  function render(list, query) {
     messagesEl.innerHTML = '';
     if (list.length === 0) {
+      emptyEl.textContent = query ? 'No messages match your search.' : 'No messages yet. Be the first to say hello.';
       messagesEl.appendChild(emptyEl);
       return;
     }
@@ -206,12 +217,21 @@
     return d.innerHTML;
   }
 
+  // client-side exact (case-insensitive) text search over the currently loaded messages
+  function applyFilter() {
+    const q = searchInput.value.trim().toLowerCase();
+    const filtered = q ? allMessages.filter(m => m.text.toLowerCase().includes(q)) : allMessages;
+    render(filtered, q);
+  }
+
+  searchInput.addEventListener('input', applyFilter);
+
   async function refresh() {
     try {
       const res = await fetch('/api/stoop/messages');
       if (!res.ok) throw new Error('bad response');
-      const list = await res.json();
-      render(list);
+      allMessages = await res.json();
+      applyFilter();
       statusEl.textContent = '';
     } catch (e) {
       statusEl.textContent = "Can't reach the radio right now.";
@@ -221,14 +241,7 @@
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = input.value.trim();
-    if (!text) return;
-
-    const username = usernameInput.value.trim();
-    if (!username) {
-      statusEl.textContent = 'Pick a username first.';
-      usernameInput.focus();
-      return;
-    }
+    if (!text || !username) return;
 
     sendBtn.disabled = true;
     try {
@@ -238,7 +251,6 @@
       });
       if (!res.ok) throw new Error('send failed');
       input.value = '';
-      lastRenderedCount = -1; // force re-render with the new message
       await refresh();
     } catch (e) {
       statusEl.textContent = 'Message failed to send. Try again.';

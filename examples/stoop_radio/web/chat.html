@@ -77,6 +77,30 @@
   .channel-name{ font-weight: 600; font-size: 1.05rem; }
   .channel-desc{ color: var(--muted); font-size: 0.9rem; }
   .arrow{ color: var(--amber); font-size: 1.3rem; }
+  .whoami{
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(60, 40, 10, 0.05);
+  }
+  .whoami label{
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .whoami input{
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    font-size: 1rem;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  .whoami input:focus{ outline: 2px solid var(--amber); }
+  .whoami .hint{ color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -84,6 +108,12 @@
   <a class="back" href="index.html">&larr; Back</a>
   <h1>Channels</h1>
   <p class="tagline">Pick a channel to read and send messages.</p>
+
+  <div class="whoami">
+    <label for="username">Your username</label>
+    <input type="text" id="username" maxlength="24" placeholder="pick a username" autocomplete="off">
+    <p class="hint">This is how others will see you in every channel.</p>
+  </div>
 
   <ul class="channel-list">
     <li>
@@ -98,5 +128,13 @@
     </li>
   </ul>
 </div>
+
+<script>
+  const usernameInput = document.getElementById('username');
+  usernameInput.value = localStorage.getItem('stoop_username') || '';
+  usernameInput.addEventListener('input', () => {
+    localStorage.setItem('stoop_username', usernameInput.value.trim());
+  });
+</script>
 </body>
 </html>
