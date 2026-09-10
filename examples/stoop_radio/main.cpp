@@ -255,6 +255,9 @@ void setup() {
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
 
   WiFi.mode(WIFI_AP);
+  // For some reason, android wants the AP to be on IP 8.8.8.8 for captive portal detection to work
+  IPAddress ap_ip(8, 8, 8, 8);
+  WiFi.softAPConfig(ap_ip, ap_ip, IPAddress(255, 255, 255, 0));
   WiFi.softAP(WIFI_SSID);
   WIFI_DEBUG_PRINTLN("WiFi AP started");
 
@@ -265,11 +268,22 @@ void setup() {
   static const char* collected_headers[] = { STOOP_SESSION_HEADER };
   server.collectHeaders(collected_headers, 1);
 
-  server.on("/", HTTP_GET, [](){
-    WIFI_DEBUG_PRINTLN("Serving index.html");
+  auto serveIndex = [](){
+    WIFI_DEBUG_PRINTLN("Serving index.html: host=%s uri=%s", server.hostHeader().c_str(), server.uri().c_str());
     server.sendHeader("Content-Encoding", "gzip");
     server.send_P(200, "text/html", (const char*)INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
-  });
+  };
+  server.on("/", HTTP_GET, serveIndex);
+
+  // Captive portals for various platforms
+  server.on("/generate_204", HTTP_GET, serveIndex);           // Android / Chrome
+  server.on("/gen_204", HTTP_GET, serveIndex);                // older Android
+  server.on("/hotspot-detect.html", HTTP_GET, serveIndex);    // iOS / macOS
+  server.on("/library/test/success.html", HTTP_GET, serveIndex); // older iOS / macOS
+  server.on("/connecttest.txt", HTTP_GET, serveIndex);        // Windows
+  server.on("/ncsi.txt", HTTP_GET, serveIndex);               // Windows (older NCSI)
+  server.on("/success.txt", HTTP_GET, serveIndex);            // Firefox
+
   server.on("/chat.html", HTTP_GET, [](){
     WIFI_DEBUG_PRINTLN("Serving chat.html");
     server.sendHeader("Content-Encoding", "gzip");
@@ -362,6 +376,8 @@ void setup() {
   // Any request for a page that we don't host is treated as a captive portal probe.
   // and redirected to the main page.
   server.onNotFound([](){
+    WIFI_DEBUG_PRINTLN("onNotFound: method=%d host=%s uri=%s",
+                       (int)server.method(), server.hostHeader().c_str(), server.uri().c_str());
     server.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/", true);
     server.send(302, "text/plain", "");
   });
