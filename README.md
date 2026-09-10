@@ -1,14 +1,14 @@
-# Stoop
+# Stoop Net
 
-Stoop is a solar-powered LoRa mesh node that runs a local bulletin board over WiFi. One node serves everyone nearby with a phone or computer. Built on [MeshCore](https://github.com/meshcore-dev/MeshCore) as the mesh transport.
+Stoop Net is a solar-powered LoRa mesh node that runs a local bulletin board over WiFi. One node serves everyone nearby with a phone or computer. Built on [MeshCore](https://github.com/meshcore-dev/MeshCore) as the mesh transport.
 
 ## The idea
 
-Existing LoRa bulletin boards (MeshCore room servers, Meshtastic BBS) require all the users to own a radio. Stoop puts the radio at a fixed location and serves phones over WiFi instead. There's nothing to install and no account to create. connect to the WiFi and use a browser to read or post.
+Existing LoRa bulletin boards (MeshCore room servers, Meshtastic BBS) require all the users to own a radio. Stoop Net puts the radio at a fixed location and serves phones over WiFi instead. There's nothing to install and no account to create. connect to the WiFi and use a browser to read or post.
 
 ## How it works
 
-Each node is an ESP32-S3 broadcasting an open WiFi access point with a captive portal. Phones connect, see the board, and can read or post without installing anything. Posts made locally are stored on the node and forwarded to other Stoop nodes over LoRa. Reads never touch the radio; only writes do.
+Each node is an ESP32-S3 broadcasting an open WiFi access point with a captive portal. Phones connect, see the board, and can read or post without installing anything. Posts made locally are stored on the node and forwarded to other Stoop Net nodes over LoRa. Reads never touch the radio; only writes do.
 
 The mesh has very little bandwidth to spend. The whole network can carry a few thousand SMS-length posts a day. This behaves like a village noticeboard with a strict word limit: post length is capped, and every post competes for the same shared airtime.
 
@@ -16,7 +16,7 @@ The mesh has very little bandwidth to spend. The whole network can carry a few t
 
 **Phone to node.** WiFi is open, there are no accounts, and a username is just a label someone typed in, with nothing behind it. Anyone in range can post as anyone, but the username is appended with the site name.
 
-**Node to node.** The main stoop network is a private network to the nodes and is encrypted by the standard meshcore transport. MeshCore channels encrypt traffic but don't attribute a message to a sender, so attribution happens at the application layer instead of being inherited from the transport.
+**Node to node.** The main Stoop Net network is private to the nodes and is encrypted by the standard meshcore transport. MeshCore channels encrypt traffic but don't attribute a message to a sender, so attribution happens at the application layer instead of being inherited from the transport.
 
 A post renders as `name@node`. The node half is static. The name half is just text someone typed. Forging another node's identity is generally not possible. Standing at a node and posting under a neighbor's name is possible, and that's an accepted tradeoff for a system with no accounts considering imposters will be sharing the same physical space.
 
@@ -28,7 +28,7 @@ There are a lot of people on Meshcore in SoCal. In order to be respectful of the
 
 ## Staying useful on a normal day
 
-A tool that only works during a disaster has no users on day one of that disaster, because nobody has connected to it before. Stoop nodes are meant to carry routine, low-stakes content too, so people already know the SSID and the hardware has been exercised before it matters.
+A tool that only works during a disaster has no users on day one of that disaster, because nobody has connected to it before. Stoop Net nodes are meant to carry routine, low-stakes content too, so people already know the SSID and the hardware has been exercised before it matters.
 
 ## Constraints worth knowing about
 
@@ -40,7 +40,7 @@ A tool that only works during a disaster has no users on day one of that disaste
 
 ## Building
 
-This is a PlatformIO project. The current Stoop firmware target is `heltec_v4_stoop_radio`:
+This is a PlatformIO project. The current Stoop Net firmware target is `heltec_v4_stoop_radio`:
 
 ```
 pio run -e heltec_v4_stoop_radio
@@ -56,10 +56,10 @@ To make the `stoop` channel private, copy `platformio.local.ini.template` to `pl
 
 ## Repo layout
 
-Stoop is a fork of MeshCore and stays mergeable with upstream on purpose. All Stoop-specific code lives under `examples/stoop_radio/`; shared MeshCore source under `src/` is not modified.
+Stoop Net is a fork of MeshCore and stays mergeable with upstream on purpose. All Stoop Net-specific code lives under `examples/stoop_net_radio/`; shared MeshCore source under `src/` is not modified.
 
 ```
-examples/stoop_radio/
+examples/stoop_net_radio/
   main.cpp             setup/loop, WiFi AP, captive portal, HTTP routes
   MyMesh.cpp/.h         mesh behavior for this node
   RateLimiter.cpp/.h    the two token buckets described above
@@ -75,3 +75,6 @@ A user can connect to the WiFi hotspot and is taken to the main page by a captiv
 - need to stress test the system with multiple phones connected and sending messages.
 - want to add another node type as a weather station or other types of admin data that can be published to the network.
 - should add some functionality to kick users off the network if they've been there awhile to make room for others.
+
+## AI Disclaimer
+The firmware has all been almost entirely written by hand, but I'm not very experienced with web dev so I mostly used AI for that. Some of the FW is copied from reference sources. I've reviewed the JS parts myself, but they have been written by Claude.
