@@ -76,7 +76,6 @@ A user can connect to the WiFi hotspot and is taken to the main page by a captiv
 - need to add an SD card to persist messages through reboots and add the ability to save 100s or 1000s of messages without competing with ESP flash.
 - need to stress test the system with multiple phones connected and sending messages.
 - want to add another node type as a weather station or other types of admin data that can be published to the network.
-- should add some functionality to kick users off the network if they've been there awhile to make room for others.
 
 ## AI Disclaimer
 The firmware has all been almost entirely written by hand, but I'm not very experienced with web dev so I mostly used AI for that. Some of the FW is copied from reference sources. I've reviewed the JS parts myself, but they have been written by Claude.
