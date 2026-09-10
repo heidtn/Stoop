@@ -23,6 +23,12 @@
 #ifndef STOOP_NODE_REFILL_MS
 #define STOOP_NODE_REFILL_MS 60000
 #endif
+#ifndef STOOP_MAX_CONNECTION_LENGTH
+#define STOOP_MAX_CONNECTION_LENGTH (60000 * 10)
+#endif
+#ifndef STOOP_MAX_CONNECTED_CLIENTS
+#define STOOP_MAX_CONNECTED_CLIENTS 8
+#endif
 
 /*
 The token bucket is used to rate-limit the number of messages a user can send in a given
@@ -72,6 +78,28 @@ struct TokenBucket {
 struct StoopSession {
   uint8_t token[STOOP_SESSION_TOKEN_LEN];
   TokenBucket bucket;
+};
+
+struct WifiSesssion {
+  uint8_t MAC[6];
+  uint32_t last_connected;
+  bool is_connected;
+};
+
+class ConnectionLimiter {
+public:
+  ConnectionLimiter();
+  // adds a new client to the connection table, returns true if successful, false if table is full
+  bool connectClient(const uint8_t* MAC, uint32_t now);
+  // disconnects a client from the connection table, returns true if successful, false if not found
+  bool disconnectClient(const uint8_t* MAC);
+  //  returns true if its time to disconnect a client, false otherwise
+  // TODO(Heidt) also returns false if client not found, any chance this is an issue?
+  bool getClientDisconnect(uint8_t* MAC, uint32_t now);
+
+private:
+  static const int MAX_WIFI_CONNECTIONS = STOOP_MAX_CONNECTED_CLIENTS;
+  WifiSesssion sessions[MAX_WIFI_CONNECTIONS];
 };
 
 class RateLimiter {

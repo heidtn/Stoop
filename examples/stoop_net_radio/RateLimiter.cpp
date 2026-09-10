@@ -78,3 +78,45 @@ void RateLimiter::getStatus(const uint8_t* presented_token, bool token_valid, ui
   node_tokens_remaining = _node_bucket.tokens;
   node_next_ms = _node_bucket.msUntilNextToken(now);
 }
+
+ConnectionLimiter::ConnectionLimiter() {
+  memset(sessions, 0, sizeof(sessions));
+  for(int i = 0; i < MAX_WIFI_CONNECTIONS; i++) {
+    sessions[i].is_connected = false;
+  }
+}
+
+
+bool ConnectionLimiter::connectClient(const uint8_t* MAC, uint32_t now) {
+  int index = -1;
+  for (int i = 0; i < MAX_WIFI_CONNECTIONS; i++) {
+    if (!sessions[i].is_connected) {
+      sessions[i].is_connected = true;
+      memcpy(sessions[i].MAC, MAC, 6);
+      sessions[i].last_connected = now;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool ConnectionLimiter::disconnectClient(const uint8_t* MAC) {
+  for (int i = 0; i < MAX_WIFI_CONNECTIONS; i++) {
+    if (sessions[i].is_connected && memcmp(sessions[i].MAC, MAC, 6) == 0) {
+      sessions[i].is_connected = false;
+      return true;
+    }
+  }
+  return false;
+}
+
+#include <helpers/esp32/SerialWifiInterface.h>
+bool ConnectionLimiter::getClientDisconnect(uint8_t* MAC, uint32_t now) {
+  for (int i = 0; i < MAX_WIFI_CONNECTIONS; i++) {
+    if (sessions[i].is_connected) {
+      memcpy(MAC, sessions[i].MAC, 6);
+      return (now - sessions[i].last_connected) > STOOP_MAX_CONNECTION_LENGTH;
+    }
+  }
+  return false;
+}

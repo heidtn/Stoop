@@ -2,6 +2,7 @@
 #include <Mesh.h>
 #include <WebServer.h>
 #include "MyMesh.h"
+#include <esp_wifi.h>
 
 #ifndef STOOP_NODE_NAME
 #define STOOP_NODE_NAME "stoop"
@@ -79,6 +80,7 @@ MultiSerialInterface interface_manager;
     #include <DNSServer.h>
     DNSServer dns_server;
     RateLimiter rate_limiter;
+    ConnectionLimiter connection_limiter;
   #else
     #error "SerialWifiInterface is not defined for this platform"
   #endif
@@ -258,7 +260,7 @@ void setup() {
   // For some reason, android wants the AP to be on IP 8.8.8.8 for captive portal detection to work
   IPAddress ap_ip(8, 8, 8, 8);
   WiFi.softAPConfig(ap_ip, ap_ip, IPAddress(255, 255, 255, 0));
-  WiFi.softAP(WIFI_SSID);
+  WiFi.softAP(WIFI_SSID, NULL, 1, false, STOOP_MAX_CONNECTED_CLIENTS);
   WIFI_DEBUG_PRINTLN("WiFi AP started");
 
   dns_server.start(53, "*", WiFi.softAPIP()); // redirect all DNS lookups to us
@@ -382,6 +384,27 @@ void setup() {
     server.send(302, "text/plain", "");
   });
 
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    switch (event) {
+      case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
+        WIFI_DEBUG_PRINTLN("Client connected: %02X:%02X:%02X:%02X:%02X:%02X",
+                           info.wifi_ap_staconnected.mac[0], info.wifi_ap_staconnected.mac[1],
+                           info.wifi_ap_staconnected.mac[2], info.wifi_ap_staconnected.mac[3],
+                           info.wifi_ap_staconnected.mac[4], info.wifi_ap_staconnected.mac[5]);
+        connection_limiter.connectClient(info.wifi_ap_staconnected.mac, millis());
+        break;
+      case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
+        WIFI_DEBUG_PRINTLN("Client disconnected: %02X:%02X:%02X:%02X:%02X:%02X",
+                           info.wifi_ap_stadisconnected.mac[0], info.wifi_ap_stadisconnected.mac[1],
+                           info.wifi_ap_stadisconnected.mac[2], info.wifi_ap_stadisconnected.mac[3],
+                           info.wifi_ap_stadisconnected.mac[4], info.wifi_ap_stadisconnected.mac[5]);
+        connection_limiter.disconnectClient(info.wifi_ap_stadisconnected.mac);
+        break;
+      default:
+        break;
+    }
+  });
+
   wifi_interface.begin(TCP_PORT);
   interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
   server.begin();
@@ -421,6 +444,20 @@ void setup() {
   board.onBootComplete();
 }
 
+// If a client has been on the network too long, disconnect them to make room for new clients.
+void checkDisconnectClient() {
+  #ifdef WIFI_SSID
+    uint8_t mac[6];
+    while (connection_limiter.getClientDisconnect(mac, millis())) {
+      uint16_t aid;
+      esp_wifi_ap_get_sta_aid(mac, &aid);
+      esp_err_t err = esp_wifi_deauth_sta(aid);
+      WIFI_DEBUG_PRINTLN("Disconnecting client %02X:%02X:%02X:%02X:%02X:%02X due to max connection length",
+                         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    }
+  #endif
+}
+
 void loop() {
   the_mesh.loop();
   interface_manager.loop();
@@ -436,6 +473,8 @@ void loop() {
 #ifdef HAS_EXTERNAL_WATCHDOG
   external_watchdog.loop();
 #endif
+  // TODO(Heidt) we can probably make this only check every once in awhile
+  checkDisconnectClient();
 
   if (!the_mesh.hasPendingWork()) {
 #if defined(NRF52_PLATFORM)
