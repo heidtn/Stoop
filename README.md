@@ -1,10 +1,12 @@
-# Stoop Net
+# StoopNet
 
 Stoop Net is a solar-powered LoRa mesh node that runs a local bulletin board over WiFi. One node serves everyone nearby with a phone or computer. Built on [MeshCore](https://github.com/meshcore-dev/MeshCore) as the mesh transport.
 
+After the fires in LA and with the potential for bad floods with the changing climate, it seemed like a good idea to have a system for distributed communication that will still function if the main infrasture goes down. This project is partly inspired by projects like disaster.radio, but attempts to make it even more accessible without the need to install an app and running on very low cost hardware.
+
 ## The idea
 
-Existing LoRa bulletin boards (MeshCore room servers, Meshtastic BBS) require all the users to own a radio. Stoop Net puts the radio at a fixed location and serves phones over WiFi instead. There's nothing to install and no account to create. connect to the WiFi and use a browser to read or post.
+Existing LoRa bulletin boards (MeshCore room servers, Meshtastic BBS) require all the users to own a radio. Stoop Net puts the radio at a fixed location and serves phones over WiFi instead. There's nothing to install and no account to create. Connect to the WiFi and use a browser to read or post. 
 
 ## How it works
 
