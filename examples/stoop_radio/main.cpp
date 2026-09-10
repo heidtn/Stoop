@@ -281,6 +281,10 @@ void setup() {
     server.send_P(200, "text/html", (const char*)STOOP_HTML_GZ, STOOP_HTML_GZ_LEN);
   });
 
+  server.on("/api/stoop/max_message_bytes", HTTP_GET, [](){
+    server.send(200, "text/plain", String(STOOP_MAX_POST_BYTES));
+  });
+
   // returns recent #stoop channel messages as JSON: [{"ts":123,"text":"name: hi"}, ...]
   server.on("/api/stoop/messages", HTTP_GET, [](){
     int count = the_mesh.stoop_log_count;

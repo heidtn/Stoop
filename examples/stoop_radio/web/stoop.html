@@ -126,6 +126,12 @@
     font-size: 0.85rem;
     padding: 4px 16px 0;
   }
+  .char-count{
+    align-self: flex-end;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .char-count.low{ color: var(--amber-dark); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -150,9 +156,12 @@
 <div class="status" id="status"></div>
 
 <form id="send-form">
-  <div class="wrap" style="display:flex; gap:10px; width:100%;">
-    <input type="text" id="text" maxlength="150" placeholder="Message #stoop&hellip;" autocomplete="off">
-    <button type="submit" id="send-btn">Send</button>
+  <div class="wrap" style="display:flex; flex-direction:column; gap:4px; width:100%;">
+    <div style="display:flex; gap:10px;">
+      <input type="text" id="text" maxlength="150" placeholder="Message #stoop&hellip;" autocomplete="off">
+      <button type="submit" id="send-btn">Send</button>
+    </div>
+    <span class="char-count" id="char-count"></span>
   </div>
 </form>
 
@@ -165,10 +174,11 @@
   const sendBtn = document.getElementById('send-btn');
   const whoamiEl = document.getElementById('whoami');
   const searchInput = document.getElementById('search');
+  const charCountEl = document.getElementById('char-count');
 
   const username = (localStorage.getItem('stoop_username') || '').trim();
   let allMessages = [];
-  let maxPostBytes = 128; // corrected once /api/limits responds; server enforces the real value regardless
+  let maxPostBytes = 128; // corrected by /api/stoop/max_message_bytes below; server enforces the real value regardless
   let budgetOk = false;    // unknown until the first /api/limits response -- fail closed, not open
   let waitMs = 0;
 
@@ -193,6 +203,30 @@
     }
   }
   updateSendability(); // disable immediately; refreshLimits() below will enable once budget is confirmed
+
+  // live "characters left" counter -- counts UTF-8 bytes under the hood (what
+  // the server actually enforces) but is always shown to the user as characters
+  function updateCharCount() {
+    const used = new TextEncoder().encode(input.value).length;
+    const remaining = maxPostBytes - used;
+    charCountEl.textContent = `${remaining} character${remaining === 1 ? '' : 's'} left`;
+    charCountEl.classList.toggle('low', remaining <= 20);
+  }
+  input.addEventListener('input', updateCharCount);
+  updateCharCount();
+
+  async function loadMaxLength() {
+    try {
+      const res = await fetch('/api/stoop/max_message_bytes');
+      if (res.ok) {
+        const n = parseInt(await res.text(), 10);
+        if (n > 0) maxPostBytes = n;
+      }
+    } catch (e) {
+      // keep the guessed default; the server still enforces the real limit either way
+    }
+    updateCharCount();
+  }
 
   function getSessionToken() {
     return localStorage.getItem('stoop_session') || '';
@@ -293,7 +327,7 @@
     if (!text || !username || sendBtn.disabled) return;
 
     if (new TextEncoder().encode(text).length > maxPostBytes) {
-      statusEl.textContent = `Message is too long (max ${maxPostBytes} bytes).`;
+      statusEl.textContent = `Message is too long (max ${maxPostBytes} characters).`;
       return;
     }
 
@@ -313,6 +347,7 @@
 
       if (data) applyLimits(data);
       input.value = '';
+      updateCharCount();
       await refresh();
     } catch (e) {
       statusEl.textContent = 'Message failed to send. Try again.';
@@ -324,6 +359,7 @@
 
   refresh();
   refreshLimits();
+  loadMaxLength();
   setInterval(() => { refresh(); refreshLimits(); }, 3000);
 </script>
 </body>
