@@ -168,14 +168,63 @@
 
   const username = (localStorage.getItem('stoop_username') || '').trim();
   let allMessages = [];
+  let maxPostBytes = 128; // corrected once /api/limits responds; server enforces the real value regardless
+  let budgetOk = false;    // unknown until the first /api/limits response -- fail closed, not open
+  let waitMs = 0;
 
   if (username) {
     whoamiEl.innerHTML = `You are <strong>${escapeHtml(username)}</strong>`;
   } else {
     whoamiEl.innerHTML = `<a href="chat.html">Pick a username to chat &rarr;</a>`;
     input.disabled = true;
-    sendBtn.disabled = true;
     input.placeholder = 'Pick a username on the Channels page first';
+  }
+
+  // the send button must reflect known limits *before* the user types anything --
+  // never let someone compose a message only to have it rejected
+  function updateSendability() {
+    sendBtn.disabled = !username || !budgetOk;
+    if (!username) return; // whoami banner already explains this case
+    if (!budgetOk) {
+      const secs = Math.ceil(waitMs / 1000);
+      statusEl.textContent = `Sending is paused -- try again in ${secs}s.`;
+    } else if (statusEl.textContent.startsWith('Sending is paused')) {
+      statusEl.textContent = '';
+    }
+  }
+  updateSendability(); // disable immediately; refreshLimits() below will enable once budget is confirmed
+
+  function getSessionToken() {
+    return localStorage.getItem('stoop_session') || '';
+  }
+
+  // wraps fetch to attach the session-token header and adopt whatever token
+  // the node hands back -- the node may issue a new one (first contact) or
+  // re-confirm an existing one on every response
+  async function apiFetch(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers, { 'X-Stoop-Session': getSessionToken() });
+    const res = await fetch(path, opts);
+    const token = res.headers.get('X-Stoop-Session');
+    if (token) localStorage.setItem('stoop_session', token);
+    return res;
+  }
+
+  function applyLimits(data) {
+    maxPostBytes = data.max_post_bytes || maxPostBytes;
+    budgetOk = data.tokens_remaining > 0 && data.node_tokens_remaining > 0;
+    waitMs = data.next_token_ms || 0;
+    updateSendability();
+  }
+
+  async function refreshLimits() {
+    try {
+      const res = await apiFetch('/api/limits');
+      if (!res.ok) return;
+      applyLimits(await res.json());
+    } catch (e) {
+      // leave last-known limits in place; the messages poll already surfaces connectivity issues
+    }
   }
 
   function splitSender(text) {
@@ -232,7 +281,7 @@
       if (!res.ok) throw new Error('bad response');
       allMessages = await res.json();
       applyFilter();
-      statusEl.textContent = '';
+      if (statusEl.textContent.startsWith("Can't reach")) statusEl.textContent = '';
     } catch (e) {
       statusEl.textContent = "Can't reach the radio right now.";
     }
@@ -241,27 +290,41 @@
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = input.value.trim();
-    if (!text || !username) return;
+    if (!text || !username || sendBtn.disabled) return;
+
+    if (new TextEncoder().encode(text).length > maxPostBytes) {
+      statusEl.textContent = `Message is too long (max ${maxPostBytes} bytes).`;
+      return;
+    }
 
     sendBtn.disabled = true;
     try {
-      const res = await fetch('/api/stoop/send', {
+      const res = await apiFetch('/api/post', {
         method: 'POST',
         body: new URLSearchParams({ username, text })
       });
+      const data = await res.json().catch(() => null);
+
+      if (res.status === 429 && data) {
+        applyLimits(data); // disables the button and shows the wait time
+        return;
+      }
       if (!res.ok) throw new Error('send failed');
+
+      if (data) applyLimits(data);
       input.value = '';
       await refresh();
     } catch (e) {
       statusEl.textContent = 'Message failed to send. Try again.';
     } finally {
-      sendBtn.disabled = false;
+      updateSendability();
       input.focus();
     }
   });
 
   refresh();
-  setInterval(refresh, 3000);
+  refreshLimits();
+  setInterval(() => { refresh(); refreshLimits(); }, 3000);
 </script>
 </body>
 </html>
